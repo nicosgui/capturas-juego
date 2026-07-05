@@ -1,11 +1,11 @@
 {
-  "status": "ok",
-  "run_id": "28753422657",
-  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28753422657",
-  "sha": "195dff4c95dd06e6cf604de7553a5376829ff66b",
-  "project_zip": "statecraft_github_latest.zip",
+  "status": "missing",
+  "run_id": "28754756137",
+  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28754756137",
+  "sha": "b1fbd4adcf12382a18bb8a4872e4b6bd938ce112",
+  "project_zip": "unknown",
   "capture_source": "sc0312/reports/capturas/v0_3_16_popup",
-  "created_at_utc": "2026-07-05T20:12:52Z",
+  "created_at_utc": "2026-07-05T21:01:21Z",
   "expected_images": [
     "01_popup_accion_visible_v0316.png",
     "02_popup_oculto_tras_salida_v0316.png",
