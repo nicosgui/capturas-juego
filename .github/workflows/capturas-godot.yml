@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       project_zip:
-        description: "Opcional. Nombre del ZIP a usar; si queda vacio, autodetecta statecraft*.zip"
+        description: "Opcional. ZIP a usar; si queda vacio, autodetecta un ZIP con project.godot"
         required: false
         default: ""
       project_dir:
@@ -20,16 +20,21 @@ on:
         required: false
         default: "10.0.x"
       capture_scene:
-        description: "Escena Godot que genera las capturas"
+        description: "Opcional. Escena Godot que genera las capturas; si queda vacio, autodetecta"
         required: false
-        default: "res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn"
+        default: ""
   push:
     branches:
       - main
     paths:
       - ".github/workflows/capturas-godot.yml"
-      - "**/statecraft*.zip"
-      - "**/sc0312/**"
+      - "**/*.zip"
+      - "**/project.godot"
+      - "**/scenes/**"
+      - "**/scripts/**"
+      - "**/scripts_csharp/**"
+      - "**/data/**"
+      - "**/assets/**"
 
 permissions:
   contents: write
@@ -76,11 +81,44 @@ jobs:
         with:
           dotnet-version: ${{ github.event.inputs.dotnet_version || '10.0.x' }}
 
-      - name: Resolver proyecto Statecraft
+      - name: Resolver proyecto Godot
         run: |
           REQUESTED_ZIP="${{ github.event.inputs.project_zip || '' }}"
           PROJECT_DIR="${{ github.event.inputs.project_dir || 'sc0312' }}"
           ZIP_NAME=""
+
+          zip_has_project() {
+            local zip_path="$1"
+            unzip -Z1 "$zip_path" 2>/dev/null | grep -Eq '(^|/)project\.godot$'
+          }
+
+          event_zip_candidates() {
+            python3 - <<'PY'
+          import json
+          import os
+
+          event_path = os.environ.get("GITHUB_EVENT_PATH", "")
+          try:
+              with open(event_path, "r", encoding="utf-8") as event_file:
+                  event = json.load(event_file)
+          except Exception:
+              event = {}
+
+          seen = set()
+          for commit in event.get("commits", []):
+              for key in ("added", "modified"):
+                  for file_name in commit.get(key, []):
+                      if file_name.lower().endswith(".zip") and file_name not in seen:
+                          seen.add(file_name)
+                          print(file_name)
+          head_commit = event.get("head_commit") or {}
+          for key in ("added", "modified"):
+              for file_name in head_commit.get(key, []):
+                  if file_name.lower().endswith(".zip") and file_name not in seen:
+                      seen.add(file_name)
+                      print(file_name)
+          PY
+          }
 
           if [ -f "$PROJECT_DIR/project.godot" ]; then
             echo "Usando proyecto versionado en repo: $PROJECT_DIR"
@@ -89,25 +127,49 @@ jobs:
             exit 0
           fi
 
-          if [ -n "$REQUESTED_ZIP" ] && [ -f "$REQUESTED_ZIP" ]; then
+          if [ -n "$REQUESTED_ZIP" ]; then
+            if [ ! -f "$REQUESTED_ZIP" ]; then
+              echo "El ZIP pedido no existe: $REQUESTED_ZIP"
+              find . -maxdepth 2 -type f -iname '*.zip' -print | sort
+              exit 1
+            fi
             ZIP_NAME="$REQUESTED_ZIP"
           fi
 
-          if [ -z "$ZIP_NAME" ] && [ -f "statecraft_github_latest.zip" ]; then
+          if [ -z "$ZIP_NAME" ]; then
+            while IFS= read -r candidate; do
+              [ -z "$candidate" ] && continue
+              candidate="${candidate#./}"
+              if [ -f "$candidate" ] && zip_has_project "$candidate"; then
+                ZIP_NAME="$candidate"
+                break
+              fi
+            done < <(event_zip_candidates)
+          fi
+
+          if [ -z "$ZIP_NAME" ] && [ -f "statecraft_github_latest.zip" ] && zip_has_project "statecraft_github_latest.zip"; then
             ZIP_NAME="statecraft_github_latest.zip"
           fi
 
           if [ -z "$ZIP_NAME" ]; then
-            ZIP_NAME="$(find . -maxdepth 2 -type f \( -iname '*statecraft*github*.zip' -o -iname '*statecraft*slim*.zip' \) | sort -Vr | head -n 1 | sed 's#^./##')"
-          fi
-
-          if [ -z "$ZIP_NAME" ]; then
-            ZIP_NAME="$(find . -maxdepth 2 -type f -iname 'statecraft*.zip' | sort -Vr | head -n 1 | sed 's#^./##')"
+            while IFS= read -r candidate; do
+              [ -z "$candidate" ] && continue
+              candidate="${candidate#./}"
+              if zip_has_project "$candidate"; then
+                ZIP_NAME="$candidate"
+                break
+              fi
+            done < <(find . -maxdepth 2 -type f -iname '*.zip' | sort -Vr)
           fi
 
           if [ -z "$ZIP_NAME" ] || [ ! -f "$ZIP_NAME" ]; then
-            echo "No se encontro ZIP Statecraft. Archivos ZIP disponibles:"
-            find . -maxdepth 2 -type f -name '*.zip' -print | sort
+            echo "No se encontro ZIP con project.godot. ZIPs disponibles:"
+            find . -maxdepth 2 -type f -iname '*.zip' -print | sort
+            exit 1
+          fi
+
+          if ! zip_has_project "$ZIP_NAME"; then
+            echo "El ZIP elegido no contiene project.godot: $ZIP_NAME"
             exit 1
           fi
 
@@ -116,7 +178,7 @@ jobs:
           unzip -q -o "$ZIP_NAME"
 
           if [ ! -f "$PROJECT_DIR/project.godot" ]; then
-            FOUND_PROJECT="$(find . -maxdepth 4 -type f -name project.godot | sort | head -n 1 || true)"
+            FOUND_PROJECT="$(find . -maxdepth 5 -type f -name project.godot | sort | head -n 1 || true)"
             if [ -n "$FOUND_PROJECT" ]; then
               PROJECT_DIR="$(dirname "$FOUND_PROJECT" | sed 's#^./##')"
             fi
@@ -159,19 +221,99 @@ jobs:
         run: |
           "$GODOT_BIN" --headless --path "$PROJECT_DIR" --import --quit
 
+      - name: Resolver escenas de validacion y captura
+        run: |
+          PROJECT_DIR="${PROJECT_DIR:-sc0312}"
+          REQUESTED_CAPTURE_SCENE="${{ github.event.inputs.capture_scene || '' }}"
+
+          normalize_scene() {
+            local scene_path="$1"
+            scene_path="${scene_path#./}"
+            scene_path="${scene_path#$PROJECT_DIR/}"
+            if [[ "$scene_path" == res://* ]]; then
+              echo "$scene_path"
+            else
+              echo "res://$scene_path"
+            fi
+          }
+
+          scene_exists() {
+            local scene_path
+            scene_path="$(normalize_scene "$1")"
+            scene_path="${scene_path#res://}"
+            [ -f "$PROJECT_DIR/$scene_path" ]
+          }
+
+          file_to_scene() {
+            local file_path="$1"
+            file_path="${file_path#./}"
+            file_path="${file_path#$PROJECT_DIR/}"
+            echo "res://$file_path"
+          }
+
+          MAP_SCENE=""
+          if scene_exists "res://scenes/testing/GodotNetCSharpMapaTableroV091.tscn"; then
+            MAP_SCENE="res://scenes/testing/GodotNetCSharpMapaTableroV091.tscn"
+          else
+            FOUND_MAP="$(find "$PROJECT_DIR/scenes/testing" -type f -iname '*Mapa*Tablero*.tscn' 2>/dev/null | sort -Vr | head -n 1 || true)"
+            [ -n "$FOUND_MAP" ] && MAP_SCENE="$(file_to_scene "$FOUND_MAP")"
+          fi
+
+          POPUP_SCENE=""
+          if scene_exists "res://scenes/testing/GodotNetCSharpDecisionPopupUXV0316.tscn"; then
+            POPUP_SCENE="res://scenes/testing/GodotNetCSharpDecisionPopupUXV0316.tscn"
+          else
+            FOUND_POPUP="$(find "$PROJECT_DIR/scenes/testing" -type f \( -iname '*Popup*UX*.tscn' -o -iname '*Decision*Popup*.tscn' \) 2>/dev/null | sort -Vr | head -n 1 || true)"
+            [ -n "$FOUND_POPUP" ] && POPUP_SCENE="$(file_to_scene "$FOUND_POPUP")"
+          fi
+
+          CAPTURE_SCENE=""
+          if [ -n "$REQUESTED_CAPTURE_SCENE" ]; then
+            CAPTURE_SCENE="$(normalize_scene "$REQUESTED_CAPTURE_SCENE")"
+            if ! scene_exists "$CAPTURE_SCENE"; then
+              echo "La escena de captura pedida no existe: $CAPTURE_SCENE"
+              exit 1
+            fi
+          elif scene_exists "res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn"; then
+            CAPTURE_SCENE="res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn"
+          else
+            FOUND_CAPTURE="$(find "$PROJECT_DIR/scenes/testing" -type f \( -iname '*Capture*.tscn' -o -iname '*Capturas*.tscn' \) 2>/dev/null | sort -Vr | head -n 1 || true)"
+            [ -n "$FOUND_CAPTURE" ] && CAPTURE_SCENE="$(file_to_scene "$FOUND_CAPTURE")"
+          fi
+
+          if [ -z "$CAPTURE_SCENE" ]; then
+            echo "No se encontro escena de captura."
+            find "$PROJECT_DIR/scenes/testing" -maxdepth 1 -type f -name '*.tscn' 2>/dev/null | sort || true
+            exit 1
+          fi
+
+          echo "MAP_SCENE=$MAP_SCENE" >> "$GITHUB_ENV"
+          echo "POPUP_SCENE=$POPUP_SCENE" >> "$GITHUB_ENV"
+          echo "CAPTURE_SCENE=$CAPTURE_SCENE" >> "$GITHUB_ENV"
+          echo "Mapa: ${MAP_SCENE:-omitido}"
+          echo "Popup: ${POPUP_SCENE:-omitido}"
+          echo "Captura: $CAPTURE_SCENE"
+
       - name: Validar mapa tablero headless
         run: |
-          "$GODOT_BIN" --headless --path "$PROJECT_DIR" --scene res://scenes/testing/GodotNetCSharpMapaTableroV091.tscn
+          if [ -z "${MAP_SCENE:-}" ]; then
+            echo "No se encontro escena de mapa; se omite validacion de mapa."
+            exit 0
+          fi
+          "$GODOT_BIN" --headless --path "$PROJECT_DIR" --scene "$MAP_SCENE"
 
       - name: Validar popup UX headless
         id: validar_popup
         continue-on-error: true
         run: |
-          "$GODOT_BIN" --headless --path "$PROJECT_DIR" --scene res://scenes/testing/GodotNetCSharpDecisionPopupUXV0316.tscn
+          if [ -z "${POPUP_SCENE:-}" ]; then
+            echo "No se encontro escena popup UX; se omite validacion popup."
+            exit 0
+          fi
+          "$GODOT_BIN" --headless --path "$PROJECT_DIR" --scene "$POPUP_SCENE"
 
       - name: Capturar con Xvfb
         run: |
-          CAPTURE_SCENE="${{ github.event.inputs.capture_scene || 'res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn' }}"
           xvfb-run -a -s "-screen 0 1600x900x24" \
             "$GODOT_BIN" \
             --path "$PROJECT_DIR" \
@@ -191,44 +333,60 @@ jobs:
         if: always()
         run: |
           PROJECT_DIR="${PROJECT_DIR:-sc0312}"
-          PRIMARY_CAPTURE_SRC="$PROJECT_DIR/reports/capturas/v0_3_16_popup"
-          CAPTURE_SRC="$PRIMARY_CAPTURE_SRC"
+          CAPTURE_ROOT="$PROJECT_DIR/reports/capturas"
+          CAPTURE_SRC=""
           CAPTURE_TMP="$RUNNER_TEMP/statecraft-captures-latest"
           rm -rf "$CAPTURE_TMP"
           mkdir -p "$CAPTURE_TMP"
 
           CAPTURE_STATUS="missing"
-          if [ -d "$CAPTURE_SRC" ] && find "$CAPTURE_SRC" -type f -name '*.png' | grep -q .; then
-            cp -R "$CAPTURE_SRC"/. "$CAPTURE_TMP"/
-            CAPTURE_STATUS="ok"
-          else
-            FALLBACK_SRC="$(find "$PROJECT_DIR/reports/capturas" -type f -name '*.png' -printf '%h\n' 2>/dev/null | sort -u | head -n 1 || true)"
-            if [ -n "$FALLBACK_SRC" ] && [ -d "$FALLBACK_SRC" ]; then
-              CAPTURE_SRC="$FALLBACK_SRC"
-              cp -R "$CAPTURE_SRC"/. "$CAPTURE_TMP"/
-              CAPTURE_STATUS="ok_fallback"
-            fi
+          if [ -d "$CAPTURE_ROOT" ]; then
+            CAPTURE_SRC="$(
+              find "$CAPTURE_ROOT" -type f -name '*.png' -printf '%T@ %h\n' 2>/dev/null \
+                | sort -nr \
+                | awk '{$1=""; sub(/^ /,""); print; exit}'
+            )"
           fi
 
-          cat > "$CAPTURE_TMP/manifest.json" <<EOF
-          {
-            "status": "$CAPTURE_STATUS",
-            "run_id": "$GITHUB_RUN_ID",
-            "run_url": "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID",
-            "sha": "$GITHUB_SHA",
-            "project_zip": "${PROJECT_ZIP:-unknown}",
-            "capture_source": "$CAPTURE_SRC",
-            "created_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "expected_images": [
-              "01_popup_accion_visible_v0316.png",
-              "02_popup_oculto_tras_salida_v0316.png",
-              "03_sociedad_provincias_triage_v0318.png",
-              "04_mapa_inspector_lateral_v0318.png",
-              "05_sociedad_necesidades_v0318.png",
-              "06_sociedad_clases_v0318.png"
-            ]
+          if [ -n "$CAPTURE_SRC" ] && [ -d "$CAPTURE_SRC" ]; then
+            cp -R "$CAPTURE_SRC"/. "$CAPTURE_TMP"/
+            CAPTURE_STATUS="ok"
+          fi
+
+          export CAPTURE_STATUS CAPTURE_SRC CAPTURE_TMP PROJECT_DIR PROJECT_ZIP CAPTURE_SCENE MAP_SCENE POPUP_SCENE
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          import pathlib
+
+          capture_tmp = pathlib.Path(os.environ["CAPTURE_TMP"])
+          images = sorted(
+              str(path.relative_to(capture_tmp)).replace("\\", "/")
+              for path in capture_tmp.rglob("*.png")
+          )
+          manifest = {
+              "status": os.environ.get("CAPTURE_STATUS", "missing"),
+              "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "run_url": "https://github.com/{}/actions/runs/{}".format(
+                  os.environ.get("GITHUB_REPOSITORY", ""),
+                  os.environ.get("GITHUB_RUN_ID", ""),
+              ),
+              "sha": os.environ.get("GITHUB_SHA", ""),
+              "project_zip": os.environ.get("PROJECT_ZIP", "unknown"),
+              "project_dir": os.environ.get("PROJECT_DIR", "unknown"),
+              "capture_scene": os.environ.get("CAPTURE_SCENE", ""),
+              "map_scene": os.environ.get("MAP_SCENE", ""),
+              "popup_scene": os.environ.get("POPUP_SCENE", ""),
+              "capture_source": os.environ.get("CAPTURE_SRC", ""),
+              "created_at_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "images": images,
           }
-          EOF
+          (capture_tmp / "manifest.json").write_text(
+              json.dumps(manifest, indent=2, ensure_ascii=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
