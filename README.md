@@ -10,7 +10,7 @@ Repositorio para generar capturas reales del proyecto Godot/Statecraft usando Gi
 3. Abri el workflow **Capturar Godot con Xvfb**.
 4. Toca **Run workflow**.
 5. Deja los valores por defecto y ejecutalo.
-6. Cuando termine, queda disponible el artifact `capturas-godot`.
+6. Cuando termine, el workflow publica las capturas en `captures/latest/` y tambien deja el artifact `capturas-godot`.
 
 El workflow descomprime el ZIP, descarga Godot Mono, instala Xvfb, ejecuta la escena de captura y sube los PNG/reportes como artifact. Tambien corre automaticamente cuando cambia el workflow o se sube un ZIP `statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM*.zip` en `main`.
 
@@ -32,6 +32,20 @@ Esa escena intenta guardar capturas en:
 sc0312/reports/capturas/v0_3_16_popup/
 ```
 
-## Para revisar con Codex
+## Salida fija para revision
 
-Cuando el workflow termine, pasa el link del run o el numero que aparece en la URL de Actions. Con ese `run_id` puedo leer jobs/logs, descargar el artifact `capturas-godot`, abrir las imagenes y usar esas capturas para seguir corrigiendo la UI.
+El workflow copia la ultima salida visual a:
+
+```text
+captures/latest/
+```
+
+Archivos esperados:
+
+```text
+captures/latest/manifest.json
+captures/latest/01_popup_accion_visible_v0316.png
+captures/latest/02_popup_oculto_tras_salida_v0316.png
+```
+
+Con eso Codex puede leer `manifest.json`, abrir las PNG por ruta fija y seguir iterando la UI sin depender del ZIP de artifact en cada vuelta.
