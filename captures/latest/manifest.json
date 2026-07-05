@@ -1,12 +1,16 @@
 {
   "status": "ok",
-  "run_id": "28756256475",
-  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28756256475",
-  "sha": "d757d2bd15a49399fe24f67c4dc97541ba9b35b4",
+  "run_id": "28756272194",
+  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28756272194",
+  "sha": "d7550467d64c2634c7ac22304615d450895d03c9",
   "project_zip": "statecraft_github_latest.zip",
+  "project_dir": "sc0312",
+  "capture_scene": "res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn",
+  "map_scene": "res://scenes/testing/GodotNetCSharpMapaTableroV091.tscn",
+  "popup_scene": "res://scenes/testing/GodotNetCSharpDecisionPopupUXV0316.tscn",
   "capture_source": "sc0312/reports/capturas/v0_3_16_popup",
-  "created_at_utc": "2026-07-05T21:59:51Z",
-  "expected_images": [
+  "created_at_utc": "2026-07-05T22:00:28Z",
+  "images": [
     "01_popup_accion_visible_v0316.png",
     "02_popup_oculto_tras_salida_v0316.png",
     "03_sociedad_provincias_triage_v0318.png",
