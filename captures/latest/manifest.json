@@ -1,12 +1,17 @@
 {
   "status": "missing",
-  "run_id": "28741651796",
-  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28741651796",
-  "sha": "123d6a6ce93876733be9d94ba83d595f0210fd95",
+  "run_id": "28753413090",
+  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28753413090",
+  "sha": "07de5e6286f6bdae75a8ece2629e276565c183b8",
+  "project_zip": "unknown",
   "capture_source": "sc0312/reports/capturas/v0_3_16_popup",
-  "created_at_utc": "2026-07-05T13:01:37Z",
+  "created_at_utc": "2026-07-05T20:11:30Z",
   "expected_images": [
     "01_popup_accion_visible_v0316.png",
-    "02_popup_oculto_tras_salida_v0316.png"
+    "02_popup_oculto_tras_salida_v0316.png",
+    "03_sociedad_provincias_triage_v0318.png",
+    "04_mapa_inspector_lateral_v0318.png",
+    "05_sociedad_necesidades_v0318.png",
+    "06_sociedad_clases_v0318.png"
   ]
 }
