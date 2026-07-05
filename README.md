@@ -2,17 +2,17 @@
 
 Repositorio para generar capturas reales del proyecto Godot/Statecraft usando GitHub Actions + Xvfb.
 
-## Uso rápido
+## Uso rapido
 
-1. Subí al repo este ZIP slim:
-   `statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM.zip`
-2. Entrá en la pestaña **Actions**.
-3. Abrí el workflow **Capturar Godot con Xvfb**.
-4. Tocá **Run workflow**.
-5. Dejá los valores por defecto y ejecutalo.
-6. Cuando termine, descargá el artifact `capturas-godot`.
+1. El ZIP subido actualmente se llama:
+   `statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM (1).zip`
+2. Entra en la pestana **Actions**.
+3. Abri el workflow **Capturar Godot con Xvfb**.
+4. Toca **Run workflow**.
+5. Deja los valores por defecto y ejecutalo.
+6. Cuando termine, queda disponible el artifact `capturas-godot`.
 
-El workflow descomprime el ZIP, descarga Godot Mono, instala Xvfb, ejecuta la escena de captura y sube los PNG/reportes como artifact.
+El workflow descomprime el ZIP, descarga Godot Mono, instala Xvfb, ejecuta la escena de captura y sube los PNG/reportes como artifact. Tambien corre automaticamente cuando cambia el workflow o se sube un ZIP `statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM*.zip` en `main`.
 
 ## ZIP esperado
 
@@ -32,6 +32,6 @@ Esa escena intenta guardar capturas en:
 sc0312/reports/capturas/v0_3_16_popup/
 ```
 
-## Nota
+## Para revisar con Codex
 
-El ZIP slim no incluye reportes/capturas viejas. Eso lo hace más liviano para subir por navegador; GitHub Actions va a regenerar los reportes necesarios.
+Cuando el workflow termine, pasa el link del run o el numero que aparece en la URL de Actions. Con ese `run_id` puedo leer jobs/logs, descargar el artifact `capturas-godot`, abrir las imagenes y usar esas capturas para seguir corrigiendo la UI.
