@@ -4,39 +4,44 @@ on:
   workflow_dispatch:
     inputs:
       project_zip:
-        description: "Nombre del ZIP del proyecto en la raiz del repo"
-        required: true
-        default: "statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM (1).zip"
+        description: "Opcional. Nombre del ZIP a usar; si queda vacio, autodetecta statecraft*.zip"
+        required: false
+        default: ""
       project_dir:
         description: "Carpeta del proyecto Godot dentro del ZIP"
-        required: true
+        required: false
         default: "sc0312"
       godot_version:
         description: "Version Godot Mono estable"
-        required: true
+        required: false
         default: "4.7"
       dotnet_version:
         description: "Version .NET SDK"
-        required: true
+        required: false
         default: "10.0.x"
       capture_scene:
         description: "Escena Godot que genera las capturas"
-        required: true
+        required: false
         default: "res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/capturas-godot.yml"
-      - "statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM*.zip"
+      - "**/statecraft*.zip"
+      - "**/sc0312/**"
 
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   capturar:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       DOTNET_ROLL_FORWARD: LatestMajor
       GODOT_SILENCE_ROOT_WARNING: "1"
@@ -69,24 +74,61 @@ jobs:
       - name: Instalar .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ inputs.dotnet_version || '10.0.x' }}
+          dotnet-version: ${{ github.event.inputs.dotnet_version || '10.0.x' }}
 
-      - name: Descomprimir proyecto
+      - name: Resolver proyecto Statecraft
         run: |
-          ZIP_NAME="${{ inputs.project_zip || 'statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM (1).zip' }}"
-          PROJECT_DIR="${{ inputs.project_dir || 'sc0312' }}"
-          if [ ! -f "$ZIP_NAME" ]; then
-            echo "No existe $ZIP_NAME en la raiz del repo. Zips disponibles:"
-            find . -maxdepth 1 -type f -name '*.zip' -print | sort
+          REQUESTED_ZIP="${{ github.event.inputs.project_zip || '' }}"
+          PROJECT_DIR="${{ github.event.inputs.project_dir || 'sc0312' }}"
+          ZIP_NAME=""
+
+          if [ -f "$PROJECT_DIR/project.godot" ]; then
+            echo "Usando proyecto versionado en repo: $PROJECT_DIR"
+            echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+            echo "PROJECT_ZIP=repo-source" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [ -n "$REQUESTED_ZIP" ] && [ -f "$REQUESTED_ZIP" ]; then
+            ZIP_NAME="$REQUESTED_ZIP"
+          fi
+
+          if [ -z "$ZIP_NAME" ] && [ -f "statecraft_github_latest.zip" ]; then
+            ZIP_NAME="statecraft_github_latest.zip"
+          fi
+
+          if [ -z "$ZIP_NAME" ]; then
+            ZIP_NAME="$(find . -maxdepth 2 -type f \( -iname '*statecraft*github*.zip' -o -iname '*statecraft*slim*.zip' \) | sort -Vr | head -n 1 | sed 's#^./##')"
+          fi
+
+          if [ -z "$ZIP_NAME" ]; then
+            ZIP_NAME="$(find . -maxdepth 2 -type f -iname 'statecraft*.zip' | sort -Vr | head -n 1 | sed 's#^./##')"
+          fi
+
+          if [ -z "$ZIP_NAME" ] || [ ! -f "$ZIP_NAME" ]; then
+            echo "No se encontro ZIP Statecraft. Archivos ZIP disponibles:"
+            find . -maxdepth 2 -type f -name '*.zip' -print | sort
             exit 1
           fi
+
+          echo "Usando ZIP: $ZIP_NAME"
+          ls -lh "$ZIP_NAME"
           unzip -q -o "$ZIP_NAME"
+
+          if [ ! -f "$PROJECT_DIR/project.godot" ]; then
+            FOUND_PROJECT="$(find . -maxdepth 4 -type f -name project.godot | sort | head -n 1 || true)"
+            if [ -n "$FOUND_PROJECT" ]; then
+              PROJECT_DIR="$(dirname "$FOUND_PROJECT" | sed 's#^./##')"
+            fi
+          fi
+
           test -f "$PROJECT_DIR/project.godot"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "PROJECT_ZIP=$ZIP_NAME" >> "$GITHUB_ENV"
 
       - name: Descargar Godot Mono
         run: |
-          GODOT_VERSION="${{ inputs.godot_version || '4.7' }}"
+          GODOT_VERSION="${{ github.event.inputs.godot_version || '4.7' }}"
           mkdir -p .godot-ci
           LOCAL_ZIP="Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64.zip"
           if [ -f "$LOCAL_ZIP" ]; then
@@ -117,6 +159,10 @@ jobs:
         run: |
           "$GODOT_BIN" --headless --path "$PROJECT_DIR" --import --quit
 
+      - name: Validar mapa tablero headless
+        run: |
+          "$GODOT_BIN" --headless --path "$PROJECT_DIR" --scene res://scenes/testing/GodotNetCSharpMapaTableroV091.tscn
+
       - name: Validar popup UX headless
         id: validar_popup
         continue-on-error: true
@@ -125,7 +171,7 @@ jobs:
 
       - name: Capturar con Xvfb
         run: |
-          CAPTURE_SCENE="${{ inputs.capture_scene || 'res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn' }}"
+          CAPTURE_SCENE="${{ github.event.inputs.capture_scene || 'res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn' }}"
           xvfb-run -a -s "-screen 0 1600x900x24" \
             "$GODOT_BIN" \
             --path "$PROJECT_DIR" \
@@ -139,13 +185,14 @@ jobs:
       - name: Listar salidas
         if: always()
         run: |
-          find "${PROJECT_DIR:-sc0312}/reports" -maxdepth 4 -type f | sort || true
+          find "${PROJECT_DIR:-sc0312}/reports" -maxdepth 5 -type f | sort || true
 
       - name: Publicar capturas latest en repo
         if: always()
         run: |
-          PROJECT_DIR="${PROJECT_DIR:-${{ inputs.project_dir || 'sc0312' }}}"
-          CAPTURE_SRC="$PROJECT_DIR/reports/capturas/v0_3_16_popup"
+          PROJECT_DIR="${PROJECT_DIR:-sc0312}"
+          PRIMARY_CAPTURE_SRC="$PROJECT_DIR/reports/capturas/v0_3_16_popup"
+          CAPTURE_SRC="$PRIMARY_CAPTURE_SRC"
           CAPTURE_TMP="$RUNNER_TEMP/statecraft-captures-latest"
           rm -rf "$CAPTURE_TMP"
           mkdir -p "$CAPTURE_TMP"
@@ -154,6 +201,13 @@ jobs:
           if [ -d "$CAPTURE_SRC" ] && find "$CAPTURE_SRC" -type f -name '*.png' | grep -q .; then
             cp -R "$CAPTURE_SRC"/. "$CAPTURE_TMP"/
             CAPTURE_STATUS="ok"
+          else
+            FALLBACK_SRC="$(find "$PROJECT_DIR/reports/capturas" -type f -name '*.png' -printf '%h\n' 2>/dev/null | sort -u | head -n 1 || true)"
+            if [ -n "$FALLBACK_SRC" ] && [ -d "$FALLBACK_SRC" ]; then
+              CAPTURE_SRC="$FALLBACK_SRC"
+              cp -R "$CAPTURE_SRC"/. "$CAPTURE_TMP"/
+              CAPTURE_STATUS="ok_fallback"
+            fi
           fi
 
           cat > "$CAPTURE_TMP/manifest.json" <<EOF
@@ -162,11 +216,16 @@ jobs:
             "run_id": "$GITHUB_RUN_ID",
             "run_url": "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID",
             "sha": "$GITHUB_SHA",
+            "project_zip": "${PROJECT_ZIP:-unknown}",
             "capture_source": "$CAPTURE_SRC",
             "created_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "expected_images": [
               "01_popup_accion_visible_v0316.png",
-              "02_popup_oculto_tras_salida_v0316.png"
+              "02_popup_oculto_tras_salida_v0316.png",
+              "03_sociedad_provincias_triage_v0318.png",
+              "04_mapa_inspector_lateral_v0318.png",
+              "05_sociedad_necesidades_v0318.png",
+              "06_sociedad_clases_v0318.png"
             ]
           }
           EOF
