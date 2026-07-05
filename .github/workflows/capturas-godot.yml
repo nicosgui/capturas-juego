@@ -6,7 +6,7 @@ on:
       project_zip:
         description: "Nombre del ZIP del proyecto en la raiz del repo"
         required: true
-        default: "statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM.zip"
+        default: "statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM (1).zip"
       project_dir:
         description: "Carpeta del proyecto Godot dentro del ZIP"
         required: true
@@ -23,6 +23,12 @@ on:
         description: "Escena Godot que genera las capturas"
         required: true
         default: "res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/capturas-godot.yml"
+      - "statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM*.zip"
 
 jobs:
   capturar:
@@ -60,15 +66,15 @@ jobs:
       - name: Instalar .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ inputs.dotnet_version }}
+          dotnet-version: ${{ inputs.dotnet_version || '10.0.x' }}
 
       - name: Descomprimir proyecto
         run: |
-          ZIP_NAME="${{ inputs.project_zip }}"
-          PROJECT_DIR="${{ inputs.project_dir }}"
+          ZIP_NAME="${{ inputs.project_zip || 'statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM (1).zip' }}"
+          PROJECT_DIR="${{ inputs.project_dir || 'sc0312' }}"
           if [ ! -f "$ZIP_NAME" ]; then
-            echo "No existe $ZIP_NAME en la raiz del repo. Subi el ZIP del proyecto y volve a correr el workflow."
-            ls -la
+            echo "No existe $ZIP_NAME en la raiz del repo. Zips disponibles:"
+            find . -maxdepth 1 -type f -name '*.zip' -print | sort
             exit 1
           fi
           unzip -q -o "$ZIP_NAME"
@@ -77,7 +83,7 @@ jobs:
 
       - name: Descargar Godot Mono
         run: |
-          GODOT_VERSION="${{ inputs.godot_version }}"
+          GODOT_VERSION="${{ inputs.godot_version || '4.7' }}"
           mkdir -p .godot-ci
           LOCAL_ZIP="Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64.zip"
           if [ -f "$LOCAL_ZIP" ]; then
@@ -114,6 +120,7 @@ jobs:
 
       - name: Capturar con Xvfb
         run: |
+          CAPTURE_SCENE="${{ inputs.capture_scene || 'res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn' }}"
           xvfb-run -a -s "-screen 0 1600x900x24" \
             "$GODOT_BIN" \
             --path "$PROJECT_DIR" \
@@ -122,7 +129,7 @@ jobs:
             --audio-driver Dummy \
             --resolution 1600x900 \
             --single-window \
-            --scene "${{ inputs.capture_scene }}"
+            --scene "$CAPTURE_SCENE"
 
       - name: Listar salidas
         if: always()
