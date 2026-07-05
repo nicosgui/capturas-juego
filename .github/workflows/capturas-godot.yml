@@ -30,6 +30,9 @@ on:
       - ".github/workflows/capturas-godot.yml"
       - "statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM*.zip"
 
+permissions:
+  contents: write
+
 jobs:
   capturar:
     runs-on: ubuntu-latest
@@ -115,6 +118,8 @@ jobs:
           "$GODOT_BIN" --headless --path "$PROJECT_DIR" --import --quit
 
       - name: Validar popup UX headless
+        id: validar_popup
+        continue-on-error: true
         run: |
           "$GODOT_BIN" --headless --path "$PROJECT_DIR" --scene res://scenes/testing/GodotNetCSharpDecisionPopupUXV0316.tscn
 
@@ -134,7 +139,53 @@ jobs:
       - name: Listar salidas
         if: always()
         run: |
-          find "$PROJECT_DIR/reports" -maxdepth 4 -type f | sort || true
+          find "${PROJECT_DIR:-sc0312}/reports" -maxdepth 4 -type f | sort || true
+
+      - name: Publicar capturas latest en repo
+        if: always()
+        run: |
+          PROJECT_DIR="${PROJECT_DIR:-${{ inputs.project_dir || 'sc0312' }}}"
+          CAPTURE_SRC="$PROJECT_DIR/reports/capturas/v0_3_16_popup"
+          CAPTURE_TMP="$RUNNER_TEMP/statecraft-captures-latest"
+          rm -rf "$CAPTURE_TMP"
+          mkdir -p "$CAPTURE_TMP"
+
+          CAPTURE_STATUS="missing"
+          if [ -d "$CAPTURE_SRC" ] && find "$CAPTURE_SRC" -type f -name '*.png' | grep -q .; then
+            cp -R "$CAPTURE_SRC"/. "$CAPTURE_TMP"/
+            CAPTURE_STATUS="ok"
+          fi
+
+          cat > "$CAPTURE_TMP/manifest.json" <<EOF
+          {
+            "status": "$CAPTURE_STATUS",
+            "run_id": "$GITHUB_RUN_ID",
+            "run_url": "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID",
+            "sha": "$GITHUB_SHA",
+            "capture_source": "$CAPTURE_SRC",
+            "created_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "expected_images": [
+              "01_popup_accion_visible_v0316.png",
+              "02_popup_oculto_tras_salida_v0316.png"
+            ]
+          }
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git switch main || git switch -c main origin/main
+          git pull --ff-only origin main
+          rm -rf captures/latest
+          mkdir -p captures/latest
+          cp -R "$CAPTURE_TMP"/. captures/latest/
+          git add captures/latest
+          if git diff --cached --quiet; then
+            echo "Sin cambios de capturas para publicar."
+          else
+            git commit -m "Actualizar capturas latest"
+            git push origin main
+          fi
 
       - name: Subir capturas y reportes
         if: always()
@@ -146,3 +197,9 @@ jobs:
             ${{ env.PROJECT_DIR }}/reports/*.json
             ${{ env.PROJECT_DIR }}/reports/*.log
           if-no-files-found: warn
+
+      - name: Fallar si la validacion popup fallo
+        if: steps.validar_popup.outcome == 'failure'
+        run: |
+          echo "La validacion popup UX fallo; las capturas ya fueron publicadas si estaban disponibles."
+          exit 1
