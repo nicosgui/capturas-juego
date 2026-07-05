@@ -1,10 +1,10 @@
 {
-  "status": "ok",
-  "run_id": "28726702734",
-  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28726702734",
-  "sha": "939bbe040e00114495862ef1433a01e698b48738",
+  "status": "missing",
+  "run_id": "28741651796",
+  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28741651796",
+  "sha": "123d6a6ce93876733be9d94ba83d595f0210fd95",
   "capture_source": "sc0312/reports/capturas/v0_3_16_popup",
-  "created_at_utc": "2026-07-05T02:16:32Z",
+  "created_at_utc": "2026-07-05T13:01:37Z",
   "expected_images": [
     "01_popup_accion_visible_v0316.png",
     "02_popup_oculto_tras_salida_v0316.png"
