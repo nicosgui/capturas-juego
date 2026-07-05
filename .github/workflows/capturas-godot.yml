@@ -6,7 +6,7 @@ on:
       project_zip:
         description: "Nombre del ZIP del proyecto en la raiz del repo"
         required: true
-        default: "statecraft_v0_3_16_popup_decision_ux_hover_FINAL.zip"
+        default: "statecraft_v0_3_16_popup_decision_ux_hover_GITHUB_SLIM.zip"
       project_dir:
         description: "Carpeta del proyecto Godot dentro del ZIP"
         required: true
