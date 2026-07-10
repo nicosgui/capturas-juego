@@ -1,21 +1,14 @@
 {
-  "status": "ok",
-  "run_id": "28756272194",
-  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/28756272194",
-  "sha": "d7550467d64c2634c7ac22304615d450895d03c9",
-  "project_zip": "statecraft_github_latest.zip",
+  "status": "missing",
+  "run_id": "29113517775",
+  "run_url": "https://github.com/nicosgui/capturas-juego/actions/runs/29113517775",
+  "sha": "bde22234183a35ac473a9d1699ee0bf4dfe45cc6",
+  "project_zip": "unknown",
   "project_dir": "sc0312",
-  "capture_scene": "res://scenes/testing/GodotNetCSharpDecisionPopupCaptureV0316.tscn",
-  "map_scene": "res://scenes/testing/GodotNetCSharpMapaTableroV091.tscn",
-  "popup_scene": "res://scenes/testing/GodotNetCSharpDecisionPopupUXV0316.tscn",
-  "capture_source": "sc0312/reports/capturas/v0_3_16_popup",
-  "created_at_utc": "2026-07-05T22:00:28Z",
-  "images": [
-    "01_popup_accion_visible_v0316.png",
-    "02_popup_oculto_tras_salida_v0316.png",
-    "03_sociedad_provincias_triage_v0318.png",
-    "04_mapa_inspector_lateral_v0318.png",
-    "05_sociedad_necesidades_v0318.png",
-    "06_sociedad_clases_v0318.png"
-  ]
+  "capture_scene": "",
+  "map_scene": "",
+  "popup_scene": "",
+  "capture_source": "",
+  "created_at_utc": "2026-07-10T18:09:28Z",
+  "images": []
 }
